@@ -375,7 +375,7 @@ func aesCBCEncrypt(key, s []byte) ([]byte, error) {
 //代码位置github.com/hyperledger/fabric/bccsp/sw/aes.go
 ```
 
-后记
+## 后记
 
 ECB模式因其高风险，不应再使用。
 CBC模式、CFB模式、OFB模式、CTR模式，均可使用。
