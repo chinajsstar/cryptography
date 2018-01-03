@@ -328,7 +328,7 @@ func (x *ctr) XORKeyStream(dst, src []byte) {
 }
 ```
 
-Fabric中实现CBC模式的AES加密
+## Fabric中实现CBC模式的AES加密
 
 代码如下：
 
