@@ -23,7 +23,7 @@ DES加密和解密的过程一致，均使用Feistel网络实现，区别仅在�
 
 go标准库中DES算法实现如下：
 
-```
+```go
 func cryptBlock(subkeys []uint64, dst, src []byte, decrypt bool) {
 	b := binary.BigEndian.Uint64(src)
 	//初始置换
@@ -50,13 +50,14 @@ func cryptBlock(subkeys []uint64, dst, src []byte, decrypt bool) {
 //代码位置src/crypto/des/block.go
 ```
 
-初始置换和终结置换
+## 初始置换和终结置换
 
 进入Feistel轮之前，64位明文需做一次初始置换。Feistel轮结束后，需做一次反向操作，即终结置换。
 初始置换和终结置换目的是为加强硬件的破解难度而加的。
 
 附go标准库中使用的初始置换表和终结置换表如下：
 
+```go
 //初始置换表
 var initialPermutation = [64]byte{
 	6, 14, 22, 30, 38, 46, 54, 62,
@@ -81,23 +82,27 @@ var finalPermutation = [64]byte{
 	31, 63, 23, 55, 15, 47, 7, 39,
 }
 //代码位置src/crypto/des/const.go
+```
 
-子密钥的计算
+## 子密钥的计算
 
 DES初始密钥为64位，其中8位用于奇偶校验，实际密钥为56位，64位初始密钥经过PC-1密钥置换后，生成56位串。
 经PC-1置换后56位的串，分为左右两部分，各28位，分别左移1位，形成C0和D0，C0和D0合并成56位，经PC-2置换后生成48位子密钥K0。
 C0和D0分别左移1位，形成C1和D1，C1和D1合并成56位，经PC-2置换后生成子密钥K1。
 以此类推，直至生成子密钥K15。但注意每轮循环左移的位数，有如下规定：
 
+```go
 var ksRotations = [16]uint8{1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1}
 //代码位置src/crypto/des/const.go
+```
 
 如下为子密钥计算示意图：
 
-subkeys.png
+![](subkeys.png)
 
 go标准库中DES子密钥计算的代码如下：
 
+```go
 func (c *desCipher) generateSubkeys(keyBytes []byte) {
 	key := binary.BigEndian.Uint64(keyBytes)
 	//PC-1密钥置换，生成56位串
@@ -115,9 +120,11 @@ func (c *desCipher) generateSubkeys(keyBytes []byte) {
 	}
 }
 //代码位置src/crypto/des/block.go
+```
 
 附go标准库中使用的PC-1置换表和PC-2置换表：
 
+```go
 //PC-1置换表
 var permutedChoice1 = [56]byte{
 	7, 15, 23, 31, 39, 47, 55, 63,
@@ -139,22 +146,24 @@ var permutedChoice2 = [48]byte{
 	22, 3, 10, 14, 6, 20, 27, 24,
 }
 //代码位置src/crypto/des/const.go
+```
 
-Feistel轮函数
+## Feistel轮函数
 
 每次Feistel轮函数内部，均经过4种运算，即：
-1、扩展置换：右侧32位做扩展置换，扩展置换将32位输入扩展成为48位输出，使得扩展后输出数据长度与48位子密钥等长。
-2、异或运算：右侧32位扩展置换为48位后，与48位子密钥做异或运算。
-3、S盒置换：将异或运算后的48位结果，分成8个6位的块，每块通过S盒置换产生4位的输出，8个块S盒置换后组成32位的输出。
+* 1、扩展置换：右侧32位做扩展置换，扩展置换将32位输入扩展成为48位输出，使得扩展后输出数据长度与48位子密钥等长。
+* 2、异或运算：右侧32位扩展置换为48位后，与48位子密钥做异或运算。
+* 3、S盒置换：将异或运算后的48位结果，分成8个6位的块，每块通过S盒置换产生4位的输出，8个块S盒置换后组成32位的输出。
 S盒置换的过程为：6位中取第1位和第6位组成行号，剩余第2、3、4、5位组成列号，从S盒置换表中取出相应行、列的十进制数，并转化为4位二进制数，即为S盒输出。
-4、P盒置换：S盒置换后的32位输出数据，进行P盒置换，仍然输出为32位数据。
+* 4、P盒置换：S盒置换后的32位输出数据，进行P盒置换，仍然输出为32位数据。
 
 如下为Feistel轮函数示意图：
 
-func.png
+![](func.png)
 
 go标准库中DES Feistel轮函数代码如下：
 
+```go
 func feistel(right uint32, key uint64) (result uint32) {
 	//右侧32位扩展置换为48位，并与48位子密钥做异或运算
 	sBoxLocations := key ^ expandBlock(right)
@@ -197,9 +206,11 @@ func init() {
 	}
 }
 //代码位置src/crypto/des/block.go
+```
 
 附go标准库中使用的扩展置换表和P盒置换表：
 
+```go
 //扩展置换表
 var expansionFunction = [48]byte{
 	0, 31, 30, 29, 28, 27, 28, 27,
@@ -218,9 +229,11 @@ var permutationFunction = [32]byte{
 	13, 19, 2, 26, 10, 21, 28, 7,
 }
 //代码位置src/crypto/des/const.go
+```
 
 附go标准库中使用的S盒置换表：
 
+```go
 var sBoxes = [8][4][16]uint8{
 	// S-box 1
 	{
@@ -280,8 +293,9 @@ var sBoxes = [8][4][16]uint8{
 	},
 }
 //代码位置src/crypto/des/const.go
+```
 
-3DES
+## 3DES
 
 DES是一个经典的对称加密算法，但也缺陷明显，即56位的密钥安全性不足，已被证实可以在短时间内破解。
 为解决此问题，出现了3DES，也称Triple DES，3DES为DES向AES过渡的加密算法，它使用3条56位的密钥对数据进行三次加密。
@@ -291,14 +305,15 @@ DES是一个经典的对称加密算法，但也缺陷明显，即56位的密钥
 
 如下为三重DES示意图：
 
-3des.png
+![](3des.png)
 
 如下为3DES兼容DES示意图：
 
-3des2.png
+![](3des2.png)
 
 go标准中3DES加密算法的实现如下：
 
+```go
 type tripleDESCipher struct {
 	cipher1, cipher2, cipher3 desCipher
 }
@@ -329,8 +344,9 @@ func (c *tripleDESCipher) Decrypt(dst, src []byte) {
 	c.cipher1.Decrypt(dst, dst)
 }
 //代码位置src/crypto/des/cipher.go
+```
 
-后记
+## 后记
 
 相比DES，3DES因密钥长度变长，安全性有所提高，但其处理速度不高。
 因此又出现了AES加密算法，AES较于3DES速度更快、安全性更高，后续单独总结。
