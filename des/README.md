@@ -7,13 +7,13 @@ DES加密算法，为对称加密算法中的一种。70年代初由IBM研发，
 DES是以64比特的明文为一个单位来进行加密的，超过64比特的数据，要求按固定的64比特的大小分组，分组有很多模式，后续单独总结，暂时先介绍DES加密算法。
 DES使用的密钥长度为64比特，但由于每隔7个比特设置一个奇偶校验位，因此其密钥长度实际为56比特。奇偶校验为最简单的错误检测码，即根据一组二进制代码中1的个数是奇数或偶数来检测错误。
 
-Feistel网络
+## Feistel网络
 
 DES的基本结构，由IBM公司的Horst Feistel设计，因此称Feistel网络。
 在Feistel网络中，加密的每个步骤称为轮，经过初始置换后的64位明文，进行了16轮Feistel轮的加密过程，最后经过终结置换后形成最终的64位密文。
 如下为Feistel网络的示意图：
 
-feistel.png
+![](feistel.png)
 
 64比特明文被分为左、右两部分处理，右侧数据和子密钥经过轮函数f生成用于加密左侧数据的比特序列，与左侧数据异或运算，运算结果输出为加密后的左侧，右侧数据则直接输出为右侧。
 其中子密钥为本轮加密使用的密钥，每次Feistel均使用不同的子密钥。子密钥的计算，以及轮函数的细节，稍后下文介绍。
@@ -23,6 +23,7 @@ DES加密和解密的过程一致，均使用Feistel网络实现，区别仅在�
 
 go标准库中DES算法实现如下：
 
+```
 func cryptBlock(subkeys []uint64, dst, src []byte, decrypt bool) {
 	b := binary.BigEndian.Uint64(src)
 	//初始置换
@@ -47,6 +48,7 @@ func cryptBlock(subkeys []uint64, dst, src []byte, decrypt bool) {
 	binary.BigEndian.PutUint64(dst, permuteFinalBlock(preOutput))
 }
 //代码位置src/crypto/des/block.go
+```
 
 初始置换和终结置换
 
