@@ -166,8 +166,8 @@ func newCFB(block Block, iv []byte, decrypt bool) Stream {
 ## OFB模式
 
 OFB模式，全称Output Feedback模式，译为输出反馈模式。
-OFB模式与CFB模式类似，只是加密算法的输入时上一次加密的输出。
-在OFB模式中，异或所需的密钥流，可以实现通过密码算法生成，即生成密钥流的操作可以与异或运算并行。
+OFB模式与CFB模式类似，只是加密算法的输入是上一次加密的输出。
+在OFB模式中，异或所需的密钥流，可以事先通过密码算法生成，即生成密钥流的操作可以与异或运算并行。
 
 OFB模式加密和处理解密逻辑相同，明文与密钥流异或生成密文，密文与密钥流异或生成明文。
 
@@ -328,7 +328,7 @@ func (x *ctr) XORKeyStream(dst, src []byte) {
 }
 ```
 
-## Fabric中实现CBC模式的AES加密
+## Fabric中CBC模式的AES加密实现
 
 代码如下：
 
