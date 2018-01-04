@@ -56,7 +56,7 @@ ed mod (p-1)(q-1) = 1，已知e和(p-1)(q-1)求d，即求e对模(p-1)(q-1)的乘
 
 ### RSA计时攻击和防范
 
-RSA解密的本质是模密运算，即：
+RSA解密的本质是模幂运算，即：
 
 ![](decrypt.png)
 
@@ -235,7 +235,6 @@ func VerifyPKCS1v15(pub *PublicKey, hash crypto.Hash, hashed []byte, sig []byte)
 
 	return nil
 }
-
 //代码位置src/crypto/rsa/pkcs1v15.go
 ```
 
