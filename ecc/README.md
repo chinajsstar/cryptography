@@ -142,6 +142,49 @@ M + kP - n(kG) = M + k(nG) - n(kG) = M
 hG/s + xP/s = hG/s + x(nG)/s = (h+nx)G/s
 = r(h+nx)G / (h+nx) = rG
 
+Go语言中椭圆曲线的实现
+
+椭圆曲线的接口定义：
+
+```go
+type Curve interface {
+	//椭圆曲线参数
+	Params() *CurveParams
+	//是否在曲线上
+	IsOnCurve(x, y *big.Int) bool
+	//加法
+	Add(x1, y1, x2, y2 *big.Int) (x, y *big.Int)
+	//二倍运算
+	Double(x1, y1 *big.Int) (x, y *big.Int)
+	//k*(Bx,By)
+	ScalarMult(x1, y1 *big.Int, k []byte) (x, y *big.Int)
+	//k*G, G为基点
+	ScalarBaseMult(k []byte) (x, y *big.Int)
+}
+//代码位置src/crypto/elliptic/elliptic.go
+```
+
+椭圆曲线的接口实现：
+
+```go
+type CurveParams struct {
+	//有限域GF(p)中质数p
+	P       *big.Int
+	//G点的阶
+	//如果存在最小正整数n，使得nG=O∞，则n为G点的阶
+	N       *big.Int
+	//椭圆曲线方程y²= x³-3x+b中常数b
+	B       *big.Int
+	//G点(x,y)
+	Gx, Gy  *big.Int
+	//密钥长度
+	BitSize int
+	//椭圆曲线名称
+	Name    string
+}
+//代码位置src/crypto/elliptic/elliptic.go
+```
+
 
 
 
