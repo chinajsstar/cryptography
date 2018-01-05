@@ -148,7 +148,7 @@ hG/s + xP/s = hG/s + x(nG)/s = (h+nx)G/s
 
 ```go
 type Curve interface {
-	//椭圆曲线参数
+	//获取椭圆曲线参数
 	Params() *CurveParams
 	//是否在曲线上
 	IsOnCurve(x, y *big.Int) bool
@@ -182,11 +182,172 @@ type CurveParams struct {
 	//椭圆曲线名称
 	Name    string
 }
+
+func (curve *CurveParams) Params() *CurveParams {
+	//获取椭圆曲线参数，即curve，代码略
+}
+
+func (curve *CurveParams) IsOnCurve(x, y *big.Int) bool {
+	//是否在曲线y²=x³-3x+b上，代码略
+}
+
+func (curve *CurveParams) Add(x1, y1, x2, y2 *big.Int) (*big.Int, *big.Int) {
+	//加法运算，代码略
+}
+
+func (curve *CurveParams) Double(x1, y1 *big.Int) (*big.Int, *big.Int) {
+	//二倍运算，代码略
+}
+
+func (curve *CurveParams) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big.Int) {
+	//k*(Bx,By)，代码略
+}
+
+func (curve *CurveParams) ScalarBaseMult(k []byte) (*big.Int, *big.Int) {
+	//k*G, G为基点，代码略
+}
 //代码位置src/crypto/elliptic/elliptic.go
 ```
 
+### Go语言中椭圆曲线签名的实现
 
+Go标准库中实现的椭圆曲线签名原理，与上述理论中基本接近。
+相关证明方法已注释在代码中。
 
+```go
+//公钥
+type PublicKey struct {
+	elliptic.Curve
+	X, Y *big.Int
+}
+
+//私钥
+type PrivateKey struct {
+	PublicKey //嵌入公钥
+	D *big.Int //私钥
+}
+
+func Sign(rand io.Reader, priv *PrivateKey, hash []byte) (r, s *big.Int, err error) {
+	entropylen := (priv.Curve.Params().BitSize + 7) / 16
+	if entropylen > 32 {
+		entropylen = 32
+	}
+	entropy := make([]byte, entropylen)
+	_, err = io.ReadFull(rand, entropy)
+	if err != nil {
+		return
+	}
+
+	md := sha512.New()
+	md.Write(priv.D.Bytes()) //私钥
+	md.Write(entropy)
+	md.Write(hash)
+	key := md.Sum(nil)[:32]
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	csprng := cipher.StreamReader{
+		R: zeroReader,
+		S: cipher.NewCTR(block, []byte(aesIV)),
+	}
+
+	c := priv.PublicKey.Curve //椭圆曲线
+	N := c.Params().N //G点的阶
+	if N.Sign() == 0 {
+		return nil, nil, errZeroParam
+	}
+	var k, kInv *big.Int
+	for {
+		for {
+			//取随机数k
+			k, err = randFieldElement(c, csprng)
+			if err != nil {
+				r = nil
+				return
+			}
+
+			//求k在有限域GF(P)的逆，即1/k
+			if in, ok := priv.Curve.(invertible); ok {
+				kInv = in.Inverse(k)
+			} else {
+				kInv = fermatInverse(k, N) // N != 0
+			}
+
+			//求r = kG
+			r, _ = priv.Curve.ScalarBaseMult(k.Bytes())
+			r.Mod(r, N)
+			if r.Sign() != 0 {
+				break
+			}
+		}
+
+		e := hashToInt(hash, c) //e即哈希
+		s = new(big.Int).Mul(priv.D, r) //Dr，即DkG
+		s.Add(s, e) //e+DkG
+		s.Mul(s, kInv) //(e+DkG)/k
+		s.Mod(s, N) // N != 0
+		if s.Sign() != 0 {
+			break
+		}
+		
+		//签名为{r, s}，即{kG, (e+DkG)/k}
+	}
+
+	return
+}
+
+//验证签名
+func Verify(pub *PublicKey, hash []byte, r, s *big.Int) bool {
+	c := pub.Curve //椭圆曲线
+	N := c.Params().N //G点的阶
+
+	if r.Sign() <= 0 || s.Sign() <= 0 {
+		return false
+	}
+	if r.Cmp(N) >= 0 || s.Cmp(N) >= 0 {
+		return false
+	}
+	e := hashToInt(hash, c) //e即哈希
+
+	var w *big.Int
+	//求s在有限域GF(P)的逆，即1/s
+	if in, ok := c.(invertible); ok {
+		w = in.Inverse(s)
+	} else {
+		w = new(big.Int).ModInverse(s, N)
+	}
+
+	u1 := e.Mul(e, w) //即e/s
+	u1.Mod(u1, N)
+	u2 := w.Mul(r, w) //即r/s
+	u2.Mod(u2, N)
+
+	var x, y *big.Int
+	if opt, ok := c.(combinedMult); ok {
+		x, y = opt.CombinedMult(pub.X, pub.Y, u1.Bytes(), u2.Bytes())
+	} else {
+		x1, y1 := c.ScalarBaseMult(u1.Bytes()) //即eG/s
+		x2, y2 := c.ScalarMult(pub.X, pub.Y, u2.Bytes()) //即DGr/s
+		//即eG/s + DGr/s = (e + Dr)G/s
+		//= (e + Dr)kG / (e + DkG) = (e + Dr)r / (e + Dr) = r
+		x, y = c.Add(x1, y1, x2, y2) 
+	}
+
+	if x.Sign() == 0 && y.Sign() == 0 {
+		return false
+	}
+	x.Mod(x, N)
+	return x.Cmp(r) == 0
+}
+//代码位置src/crypto/ecdsa/ecdsa.go
+```
+
+后记
+
+椭圆曲线数字签名算法，因其高安全性，目前已广泛应用在比特币、以太坊、超级账本等区块链项目中。
 
 
 
